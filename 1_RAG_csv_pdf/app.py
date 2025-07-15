@@ -3,9 +3,8 @@ import os
 import json
 import pandas as pd
 from datetime import datetime
-from dotenv import load_dotenv
 import re
-from typing import Dict, List, Any
+from typing import List, Any
 from langchain_groq import ChatGroq
 from langchain_openai import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -25,13 +24,9 @@ os.makedirs(FAISS_DIR, exist_ok=True)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # === Environment ===
-load_dotenv()
-if not os.getenv("OPENAI_API_KEY") or not os.getenv("GROQ_API_KEY"):
-    st.error("API keys missing. Please set OPENAI_API_KEY and GROQ_API_KEY in .env file.")
+if not os.environ.get("OPENAI_API_KEY") or not os.environ.get("GROQ_API_KEY"):
+    st.error("API keys missing. Please set OPENAI_API_KEY and GROQ_API_KEY in Streamlit Cloud secrets.")
     st.stop()
-
-os.environ['OPENAI_API_KEY'] = os.getenv("OPENAI_API_KEY")
-os.environ['GROQ_API_KEY'] = os.getenv("GROQ_API_KEY")
 
 # === LLM & Embeddings ===
 llm = ChatGroq(groq_api_key=os.environ['GROQ_API_KEY'], model_name="Llama3-8b-8192")
@@ -51,6 +46,8 @@ if "vectors" not in st.session_state:
     st.session_state.vectors = None
 if "csv_dataframes" not in st.session_state:
     st.session_state.csv_dataframes = {}
+if "uploaded_files" not in st.session_state:
+    st.session_state.uploaded_files = []
 
 # === Auto-load existing vectorstore ===
 faiss_index_path = os.path.join(FAISS_DIR, "index.faiss")
@@ -62,14 +59,16 @@ if os.path.exists(faiss_index_path) and os.path.exists(faiss_meta_path):
 class AgentState(BaseModel):
     query: str
     documents: List[Any] = []
-    csv_dataframes: Dict[str, pd.DataFrame] = {}
     csv_result: str = ""
     pdf_context: str = ""
     final_answer: str = ""
 
+    class Config:
+        arbitrary_types_allowed = True
+
 # === Agent Functions ===
 def file_processor_agent(state: AgentState) -> AgentState:
-    """Processes uploaded files and updates state with documents and DataFrames."""
+    """Processes uploaded files and updates state with documents."""
     all_docs = []
     for file in st.session_state.get("uploaded_files", []):
         path = os.path.join(UPLOAD_DIR, file.name)
@@ -83,7 +82,6 @@ def file_processor_agent(state: AgentState) -> AgentState:
             all_docs.extend(loader.load())
             try:
                 df = pd.read_csv(path)
-                state.csv_dataframes[file.name] = df
                 st.session_state.csv_dataframes[file.name] = df
                 with st.expander(f"📊 Summary of `{file.name}`"):
                     st.dataframe(df.describe(include='all').transpose())
@@ -104,7 +102,7 @@ def file_processor_agent(state: AgentState) -> AgentState:
 def csv_query_agent(state: AgentState) -> AgentState:
     """Handles CSV-related queries using pandas."""
     state.csv_result = ""
-    for name, df in state.csv_dataframes.items():
+    for name, df in st.session_state.csv_dataframes.items():
         cols_lower = [col.lower() for col in df.columns]
         if any(re.search(col, state.query.lower()) for col in cols_lower):
             try:
@@ -152,8 +150,8 @@ def response_generator_agent(state: AgentState) -> AgentState:
 
 def supervisor_agent(state: AgentState) -> str:
     """Routes query to appropriate agent or END."""
-    if state.csv_dataframes and any(
-        re.search(col, state.query.lower()) for df in state.csv_dataframes.values() for col in df.columns
+    if st.session_state.csv_dataframes and any(
+        re.search(col, state.query.lower()) for df in st.session_state.csv_dataframes.values() for col in df.columns
     ):
         return "csv_query_agent"
     elif st.session_state.vectors:
@@ -170,7 +168,7 @@ workflow.add_node("response_generator_agent", response_generator_agent)
 
 workflow.add_conditional_edges(
     "file_processor_agent",
-    lambda state: "csv_query_agent" if state.csv_dataframes else "pdf_retrieval_agent",
+    lambda state: "csv_query_agent" if st.session_state.csv_dataframes else "pdf_retrieval_agent",
     {"csv_query_agent": "csv_query_agent", "pdf_retrieval_agent": "pdf_retrieval_agent"}
 )
 workflow.add_conditional_edges(
@@ -211,13 +209,13 @@ with st.expander("➕ Upload Files", expanded=False):
     uploaded = st.file_uploader("", type=["pdf", "csv"], accept_multiple_files=True, label_visibility="collapsed")
     if uploaded:
         st.session_state.uploaded_files = uploaded
-        initial_state = AgentState(query="", csv_dataframes=st.session_state.csv_dataframes)
+        initial_state = AgentState(query="")
         app.invoke(initial_state)
 
 # === Chat Input ===
 user_input = st.chat_input("Ask a question about your uploaded documents")
 if user_input:
-    state = AgentState(query=user_input, csv_dataframes=st.session_state.csv_dataframes)
+    state = AgentState(query=user_input)
     with st.spinner("Processing query..."):
         result = app.invoke(state)
     answer = result.final_answer
