@@ -1,0 +1,67 @@
+{
+    "getvehicles": {
+        "description": "Real-time vehicle positions/status (5-min window)",
+        "keys": ["vid", "timestamp", "tablockid", "blk", "tatripid"],
+        "relationships": {
+            "trip_event_bustime": ["vid", "tablockid", "blk", "tatripid"],
+            "clever_pred": ["vid", "timestamp"],
+            "gtfs_block": ["tablockid → BLOCK_ID_USER", "blk → BLOCK_ID_GTFS"],
+            "bus_vid": ["vid → name"],
+            "trip_event_bustime_to_block": ["vid", "tablockid", "blk"]
+        }
+    },
+    
+    "gtfs_block": {
+        "description": "Static block definitions (schedules/routes)",
+        "keys": ["BLOCK_ID_GTFS", "BLOCK_ID_USER", "DAY", "SERVICE_ID"],
+        "relationships": {
+            "getvehicles": ["BLOCK_ID_USER → tablockid", "BLOCK_ID_GTFS → blk"],
+            "trip_event_bustime": ["BLOCK_ID_USER → tablockid", "BLOCK_ID_GTFS → blk"],
+            "clever_pred": ["BLOCK_ID_USER → block_id", "BLOCK_ID_GTFS → block_id_gtfs"],
+            "trip_event_bustime_to_block": ["BLOCK_ID_USER → tablockid", "BLOCK_ID_GTFS → blk"]
+        }
+    },
+    
+    "clever_pred": {
+        "description": "Real-time SOC/range predictions for EVs models",
+        "keys": ["bus_id", "timestamp", "block_id", "block_id_gtfs"],
+        "relationships": {
+            "getvehicles": ["bus_id → vid", "block_id → tablockid", "block_id_gtfs → blk"],
+            "gtfs_block": ["block_id → BLOCK_ID_USER", "block_id_gtfs → BLOCK_ID_GTFS"],
+            "trip_event_bustime_to_block": ["bus_id → vid", "block_id → tablockid"]
+        }
+    },
+    
+    "trip_event_bustime": {
+        "description": "EV trip-level historical metrics",
+        "keys": ["vid", "tatripid", "start_timestamp"],
+        "relationships": {
+            "getvehicles": ["vid", "tatripid", "tablockid", "blk"],
+            "gtfs_block": ["tablockid → BLOCK_ID_USER", "blk → BLOCK_ID_GTFS"],
+            "bus_vid": ["vid → name"],
+            "trip_event_bustime_to_block": ["vid", "tablockid", "blk"]
+        }
+    },
+    
+    "bus_vid": {
+        "description": "Static EV specifications vehicle metadata",
+        "keys": ["name"],
+        "relationships": {
+            "getvehicles": ["name → vid"],
+            "trip_event_bustime": ["name → vid"],
+            "trip_event_bustime_to_block": ["name → vid"],
+            "clever_pred": ["name → bus_id"]
+        }
+    },
+  
+    "trip_event_bustime_to_block": {
+        "description": "EV block-level historical metrics",
+        "keys": ["vid", "tablockid", "start_timestamp"],
+        "relationships": {
+            "getvehicles": ["vid", "tablockid", "blk"],
+            "gtfs_block": ["tablockid → BLOCK_ID_USER", "blk → BLOCK_ID_GTFS"],
+            "bus_vid": ["vid → name"],
+            "clever_pred": ["vid → bus_id", "tablockid → block_id"]
+        }
+    }
+}

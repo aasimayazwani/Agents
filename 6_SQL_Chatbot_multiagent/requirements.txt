@@ -1,0 +1,14 @@
+langgraph==0.1.9  # Latest version as of July 2025, adjust if newer
+openai==1.35.0   # Compatible with OpenAI client, adjust based on your API usage
+streamlit==1.36.0  # Latest stable version as of July 2025
+pandas==2.2.2    # Stable version for data manipulation
+shapely==2.0.4   # For geometric operations (e.g., Polygon)
+sqlite3==3.45.0  # Included with Python, but specify if using a specific version
+numpy==2.0.0     # Required by pandas, specify a compatible version
+pathlib==1.0.1   # Included with Python, but included for clarity
+json==2.0.9      # Included with Python, but included for clarity
+os==1.0.0        # Included with Python, but included for clarity
+csv==1.0         # Included with Python, but included for clarity
+datetime==5.5    # Included with Python, but included for clarity
+functools==1.0.0 # Included with Python, but included for clarity
+logging==1.0.0   # Included with Python, but included for clarity
