@@ -30,7 +30,7 @@ if not os.environ.get("OPENAI_API_KEY") or not os.environ.get("GROQ_API_KEY"):
     st.stop()
 
 # === LLM & Embeddings ===
-llm = ChatGroq(groq_api_key=os.environ['GROQ_API_KEY'], model_name="Llama3-8b-8192")
+llm = ChatGroq(groq_api_key=os.environ['GROQ_API_KEY'], model_name="llama3-8b-8192")
 embedder = OpenAIEmbeddings()
 prompt = ChatPromptTemplate.from_template("""
 Answer the questions based on the provided context only.
@@ -51,10 +51,13 @@ if "uploaded_files" not in st.session_state:
     st.session_state.uploaded_files = []
 
 # === Auto-load existing vectorstore ===
-faiss_index_path = os.path.join(FAISS_DIR, "index.faiss")
-faiss_meta_path = os.path.join(FAISS_DIR, "index.pkl")
-if os.path.exists(faiss_index_path) and os.path.exists(faiss_meta_path):
-    st.session_state.vectors = FAISS.load_local(FAISS_DIR, embedder, allow_dangerous_deserialization=True)
+try:
+    faiss_index_path = os.path.join(FAISS_DIR, "index.faiss")
+    faiss_meta_path = os.path.join(FAISS_DIR, "index.pkl")
+    if os.path.exists(faiss_index_path) and os.path.exists(faiss_meta_path):
+        st.session_state.vectors = FAISS.load_local(FAISS_DIR, embedder, allow_dangerous_deserialization=True)
+except Exception as e:
+    st.warning(f"Could not load existing vector store: {e}")
 
 # === State Schema for LangGraph ===
 class AgentState(BaseModel):
@@ -71,93 +74,161 @@ class AgentState(BaseModel):
 def file_processor_agent(state: AgentState) -> AgentState:
     """Processes uploaded files and updates state with documents."""
     all_docs = []
+    
+    # Process files from session state
     for file in st.session_state.get("uploaded_files", []):
-        path = os.path.join(UPLOAD_DIR, file.name)
-        with open(path, "wb") as f:
-            f.write(file.read())
-        if file.name.endswith(".pdf"):
-            loader = PyPDFLoader(path)
-            all_docs.extend(loader.load())
-        elif file.name.endswith(".csv"):
-            loader = CSVLoader(file_path=path, encoding="utf-8")
-            all_docs.extend(loader.load())
-            try:
-                df = pd.read_csv(path)
-                st.session_state.csv_dataframes[file.name] = df
-                with st.expander(f"📊 Summary of `{file.name}`"):
-                    st.dataframe(df.describe(include='all').transpose())
-            except Exception as e:
-                st.warning(f"Unable to summarize {file.name}: {e}")
+        try:
+            path = os.path.join(UPLOAD_DIR, file.name)
+            
+            # Write file to disk
+            with open(path, "wb") as f:
+                f.write(file.getvalue())  # Use getvalue() instead of read()
+            
+            if file.name.endswith(".pdf"):
+                loader = PyPDFLoader(path)
+                docs = loader.load()
+                all_docs.extend(docs)
+                
+            elif file.name.endswith(".csv"):
+                loader = CSVLoader(file_path=path, encoding="utf-8")
+                docs = loader.load()
+                all_docs.extend(docs)
+                
+                # Load DataFrame for CSV analysis
+                try:
+                    df = pd.read_csv(path)
+                    st.session_state.csv_dataframes[file.name] = df
+                    with st.expander(f"📊 Summary of `{file.name}`"):
+                        st.dataframe(df.describe(include='all').transpose())
+                except Exception as e:
+                    st.warning(f"Unable to summarize {file.name}: {e}")
+                    
+        except Exception as e:
+            st.error(f"Error processing {file.name}: {e}")
+            continue
+    
+    # Process documents if any were loaded
     if all_docs:
-        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-        state.documents = splitter.split_documents(all_docs)
-        new_index = FAISS.from_documents(state.documents, embedder)
-        if st.session_state.vectors:
-            st.session_state.vectors.merge_from(new_index)
-        else:
-            st.session_state.vectors = new_index
-        st.session_state.vectors.save_local(FAISS_DIR)
-        st.success("✅ Documents processed and indexed.")
+        try:
+            splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+            state.documents = splitter.split_documents(all_docs)
+            
+            # Create new index
+            new_index = FAISS.from_documents(state.documents, embedder)
+            
+            # Merge with existing or create new
+            if st.session_state.vectors:
+                st.session_state.vectors.merge_from(new_index)
+            else:
+                st.session_state.vectors = new_index
+            
+            # Save to disk
+            st.session_state.vectors.save_local(FAISS_DIR)
+            st.success("✅ Documents processed and indexed.")
+            
+        except Exception as e:
+            st.error(f"Error creating vector index: {e}")
+    
     return state
 
 def csv_query_agent(state: AgentState) -> AgentState:
     """Handles CSV-related queries using pandas."""
     state.csv_result = ""
+    
+    if not st.session_state.csv_dataframes:
+        return state
+    
     for name, df in st.session_state.csv_dataframes.items():
-        cols_lower = [col.lower() for col in df.columns]
-        if any(re.search(col, state.query.lower()) for col in cols_lower):
-            try:
-                if "sum" in state.query.lower():
-                    result = df.sum(numeric_only=True)
-                elif "average" in state.query.lower() or "mean" in state.query.lower():
-                    result = df.mean(numeric_only=True)
-                elif "count" in state.query.lower():
-                    result = df.count()
-                else:
-                    result = df.describe(include='all').transpose()
-                state.csv_result = f"From `{name}`:\n{result.to_string()}"
-                return state
-            except Exception as e:
-                state.csv_result = f"Error parsing CSV with pandas: {e}"
-                return state
+        try:
+            # Check if query relates to this CSV
+            cols_lower = [col.lower() for col in df.columns]
+            query_lower = state.query.lower()
+            
+            # More robust column matching
+            relevant_cols = [col for col in cols_lower if col in query_lower]
+            
+            if relevant_cols or any(keyword in query_lower for keyword in ['sum', 'average', 'mean', 'count', 'describe']):
+                try:
+                    if "sum" in query_lower:
+                        result = df.sum(numeric_only=True)
+                    elif "average" in query_lower or "mean" in query_lower:
+                        result = df.mean(numeric_only=True)
+                    elif "count" in query_lower:
+                        result = df.count()
+                    else:
+                        result = df.describe(include='all').transpose()
+                    
+                    state.csv_result = f"From `{name}`:\n{result.to_string()}"
+                    return state
+                    
+                except Exception as e:
+                    state.csv_result = f"Error analyzing CSV {name}: {e}"
+                    return state
+        except Exception as e:
+            st.error(f"Error processing CSV {name}: {e}")
+            continue
+    
     return state
 
 def pdf_retrieval_agent(state: AgentState) -> AgentState:
     """Retrieves relevant PDF context using FAISS."""
     state.pdf_context = ""
+    
+    # Only proceed if we have vectors and no CSV result
     if st.session_state.vectors and not state.csv_result:
-        chain = create_stuff_documents_chain(llm, prompt)
-        retriever = st.session_state.vectors.as_retriever()
-        retrieval_chain = create_retrieval_chain(retriever, chain)
-        with st.spinner("Searching documents..."):
-            result = retrieval_chain.invoke({"input": state.query})
-            state.pdf_context = result.get("context", "")
-            state.final_answer = result.get("answer", "")
-        return state
+        try:
+            chain = create_stuff_documents_chain(llm, prompt)
+            retriever = st.session_state.vectors.as_retriever()
+            retrieval_chain = create_retrieval_chain(retriever, chain)
+            
+            with st.spinner("Searching documents..."):
+                result = retrieval_chain.invoke({"input": state.query})
+                state.pdf_context = result.get("context", "")
+                state.final_answer = result.get("answer", "")
+                
+        except Exception as e:
+            st.error(f"Error during PDF retrieval: {e}")
+            state.final_answer = f"Error retrieving information: {e}"
+    
     return state
 
 def response_generator_agent(state: AgentState) -> AgentState:
     """Generates final response using LLM if needed."""
     if state.csv_result:
         state.final_answer = state.csv_result
-    elif state.pdf_context:
+    elif state.pdf_context and state.final_answer:
         # Already set in pdf_retrieval_agent
         pass
     else:
-        with st.spinner("Using LLM without document context..."):
-            result = llm.invoke(state.query)
-            state.final_answer = result.content if hasattr(result, "content") else str(result)
+        try:
+            with st.spinner("Generating response..."):
+                result = llm.invoke(state.query)
+                state.final_answer = result.content if hasattr(result, "content") else str(result)
+        except Exception as e:
+            st.error(f"Error generating response: {e}")
+            state.final_answer = f"I apologize, but I encountered an error: {e}"
+    
     return state
 
 def supervisor_agent(state: AgentState) -> str:
     """Routes query to appropriate agent or END."""
-    if st.session_state.csv_dataframes and any(
-        re.search(col, state.query.lower()) for df in st.session_state.csv_dataframes.values() for col in df.columns
-    ):
-        return "csv_query_agent"
-    elif st.session_state.vectors:
-        return "pdf_retrieval_agent"
-    else:
+    try:
+        # Check if query is CSV-related
+        if st.session_state.csv_dataframes:
+            query_lower = state.query.lower()
+            for df in st.session_state.csv_dataframes.values():
+                cols_lower = [col.lower() for col in df.columns]
+                if any(col in query_lower for col in cols_lower) or any(keyword in query_lower for keyword in ['sum', 'average', 'mean', 'count', 'describe']):
+                    return "csv_query_agent"
+        
+        # Check if we have PDF vectors
+        if st.session_state.vectors:
+            return "pdf_retrieval_agent"
+        else:
+            return "response_generator_agent"
+            
+    except Exception as e:
+        st.error(f"Error in supervisor routing: {e}")
         return "response_generator_agent"
 
 # === LangGraph Workflow ===
@@ -167,21 +238,37 @@ workflow.add_node("csv_query_agent", csv_query_agent)
 workflow.add_node("pdf_retrieval_agent", pdf_retrieval_agent)
 workflow.add_node("response_generator_agent", response_generator_agent)
 
+# Set entry point
+workflow.set_entry_point("file_processor_agent")
+
+# Add conditional edges with proper routing
 workflow.add_conditional_edges(
     "file_processor_agent",
-    lambda state: "csv_query_agent" if st.session_state.csv_dataframes else "pdf_retrieval_agent",
-    {"csv_query_agent": "csv_query_agent", "pdf_retrieval_agent": "pdf_retrieval_agent"}
+    supervisor_agent,
+    {
+        "csv_query_agent": "csv_query_agent",
+        "pdf_retrieval_agent": "pdf_retrieval_agent",
+        "response_generator_agent": "response_generator_agent"
+    }
 )
+
 workflow.add_conditional_edges(
     "csv_query_agent",
     lambda state: "response_generator_agent" if state.csv_result else "pdf_retrieval_agent",
-    {"response_generator_agent": "response_generator_agent", "pdf_retrieval_agent": "pdf_retrieval_agent"}
+    {
+        "response_generator_agent": "response_generator_agent",
+        "pdf_retrieval_agent": "pdf_retrieval_agent"
+    }
 )
+
 workflow.add_edge("pdf_retrieval_agent", "response_generator_agent")
 workflow.add_edge("response_generator_agent", END)
 
-workflow.set_entry_point("file_processor_agent")
-app = workflow.compile()
+try:
+    app = workflow.compile()
+except Exception as e:
+    st.error(f"Error compiling workflow: {e}")
+    st.stop()
 
 # === Streamlit Page ===
 st.set_page_config(page_title="Multi-Agent RAG Chatbot | PDF + CSV", layout="wide")
@@ -190,53 +277,60 @@ st.title("📄 Multi-Agent RAG Chatbot | CSV + PDF | Upload + Summarize + Chat")
 # === Sidebar with file listing and delete buttons ===
 with st.sidebar:
     st.markdown("### 📂 Uploaded Files")
-    existing_files = sorted(f for f in os.listdir(UPLOAD_DIR) if f.endswith((".csv", ".pdf")))
-    if existing_files:
-        for file in existing_files:
-            file_path = os.path.join(UPLOAD_DIR, file)
-            with st.form(key=f"delete_form_{file}"):
-                st.markdown(f"- `{file}`")
-                delete = st.form_submit_button("❌ Delete")
-                if delete:
-                    os.remove(file_path)
-                    st.success(f"{file} deleted.")
-                    st.experimental_rerun()
-    else:
-        st.info("No uploaded files found.")
+    try:
+        existing_files = sorted(f for f in os.listdir(UPLOAD_DIR) if f.endswith((".csv", ".pdf")))
+        if existing_files:
+            for file in existing_files:
+                file_path = os.path.join(UPLOAD_DIR, file)
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.markdown(f"📄 `{file}`")
+                with col2:
+                    if st.button("❌", key=f"delete_{file}"):
+                        try:
+                            os.remove(file_path)
+                            st.success(f"{file} deleted.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error deleting {file}: {e}")
+        else:
+            st.info("No uploaded files found.")
+    except Exception as e:
+        st.error(f"Error listing files: {e}")
 
 # === Upload Section ===
-st.markdown("<style>.upload-icon { position: absolute; top: 20px; right: 20px; }</style>", unsafe_allow_html=True)
 with st.expander("➕ Upload Files", expanded=False):
-    uploaded = st.file_uploader("", type=["pdf", "csv"], accept_multiple_files=True, label_visibility="collapsed")
+    uploaded = st.file_uploader("Select PDF or CSV files", type=["pdf", "csv"], accept_multiple_files=True)
     if uploaded:
         st.session_state.uploaded_files = uploaded
-        initial_state = {"query": ""}
         try:
+            initial_state = AgentState(query="")
             app.invoke(initial_state)
-        except ValidationError as e:
-            st.error("Error processing initial state. Please check the logs for details.")
-            st.stop()
+        except Exception as e:
+            st.error(f"Error processing uploaded files: {e}")
 
 # === Chat Input ===
 user_input = st.chat_input("Ask a question about your uploaded documents")
 if user_input:
-    state = {"query": user_input}
     try:
+        state = AgentState(query=user_input)
         with st.spinner("Processing query..."):
             result = app.invoke(state)
+        
         answer = result.final_answer
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
         st.session_state.chat_history.append({
             "timestamp": timestamp,
             "question": user_input,
             "answer": answer
         })
-    except ValidationError as e:
-        st.error("Error processing your query. Please check the logs for details.")
-        st.stop()
+        
+    except Exception as e:
+        st.error(f"Error processing your query: {e}")
 
 # === Display Chat ===
-for idx, msg in enumerate(st.session_state.chat_history):
+for msg in reversed(st.session_state.chat_history):
     with st.chat_message("user"):
         st.markdown(f"**You ({msg['timestamp']}):** {msg['question']}")
     with st.chat_message("assistant"):
@@ -248,6 +342,8 @@ with col1:
     if st.button("🧹 Clear Chat History"):
         st.session_state.chat_history = []
         st.success("Chat history cleared.")
+        st.rerun()
+
 with col2:
     if st.session_state.chat_history:
         json_data = json.dumps(st.session_state.chat_history, indent=2)
