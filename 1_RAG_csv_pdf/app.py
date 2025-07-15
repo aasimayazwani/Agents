@@ -9,12 +9,12 @@ from langchain_groq import ChatGroq
 from langchain_openai import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain.chains.retrieval import create_retrieval_chain  # Added missing import
+from langchain.chains.retrieval import create_retrieval_chain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader, CSVLoader
 from langgraph.graph import StateGraph, END
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 # === Directories ===
 BASE_DIR = "rag_app_data"
@@ -210,22 +210,30 @@ with st.expander("➕ Upload Files", expanded=False):
     uploaded = st.file_uploader("", type=["pdf", "csv"], accept_multiple_files=True, label_visibility="collapsed")
     if uploaded:
         st.session_state.uploaded_files = uploaded
-        initial_state = AgentState(query="")
-        app.invoke(initial_state)
+        initial_state = {"query": ""}
+        try:
+            app.invoke(initial_state)
+        except ValidationError as e:
+            st.error("Error processing initial state. Please check the logs for details.")
+            st.stop()
 
 # === Chat Input ===
 user_input = st.chat_input("Ask a question about your uploaded documents")
 if user_input:
-    state = AgentState(query=user_input)
-    with st.spinner("Processing query..."):
-        result = app.invoke(state)
-    answer = result.final_answer
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    st.session_state.chat_history.append({
-        "timestamp": timestamp,
-        "question": user_input,
-        "answer": answer
-    })
+    state = {"query": user_input}
+    try:
+        with st.spinner("Processing query..."):
+            result = app.invoke(state)
+        answer = result.final_answer
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.chat_history.append({
+            "timestamp": timestamp,
+            "question": user_input,
+            "answer": answer
+        })
+    except ValidationError as e:
+        st.error("Error processing your query. Please check the logs for details.")
+        st.stop()
 
 # === Display Chat ===
 for idx, msg in enumerate(st.session_state.chat_history):
