@@ -95,6 +95,7 @@ with st.sidebar.expander("🧠 Previous Strategies", expanded=False):
 # --- Suggest Strategy Button ---
 suggest_clicked = st.sidebar.button("🚀 Suggest strategy", type="primary", use_container_width=True)
 
+st.markdown('<div class="sidebar-bottom">', unsafe_allow_html=True)
 # --- Session Tools (de-emphasized) ---
 with st.sidebar.expander("🧹 Session Tools", expanded=False):
     st.markdown("Manage portfolio and memory:")
@@ -107,6 +108,8 @@ with st.sidebar.expander("🧹 Session Tools", expanded=False):
 
     if st.button("🗑️ Clear Strategy History"):
         st.session_state.strategy_history = []
+st.markdown('</div>', unsafe_allow_html=True)
+
 
 # 🔧 Extract sidebar values into variables
 experience_level   = st.session_state.get("experience_level", "Expert")
@@ -152,7 +155,12 @@ st.markdown("""
     border-radius: 12px;
     margin-bottom: 18px;
   }
-
+  .sidebar-bottom {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 1rem;
+            width: 18rem;
+        }
   /* 🔷 Ticker Chip Badge */
   .chip {
     display: inline-block;
