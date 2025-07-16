@@ -96,20 +96,17 @@ with st.sidebar.expander("🧠 Previous Strategies", expanded=False):
 suggest_clicked = st.sidebar.button("🚀 Suggest strategy", type="primary", use_container_width=True)
 
 st.markdown('<div class="sidebar-bottom">', unsafe_allow_html=True)
-# --- Session Tools (de-emphasized) ---
-with st.sidebar.expander("🧹 Session Tools", expanded=False):
+
+with st.expander("🧹 Session Tools", expanded=False):
     st.markdown("Manage portfolio and memory:")
-    
     if st.button("🗑️ Clear Portfolio"):
         st.session_state.portfolio_alloc = {}
-
     if st.button("🧽 Clear Chat History"):
         st.session_state.chat_history = []
-
     if st.button("🗑️ Clear Strategy History"):
         st.session_state.strategy_history = []
-st.markdown('</div>', unsafe_allow_html=True)
 
+st.markdown('</div>', unsafe_allow_html=True)
 
 # 🔧 Extract sidebar values into variables
 experience_level   = st.session_state.get("experience_level", "Expert")
