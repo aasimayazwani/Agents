@@ -96,7 +96,6 @@ with st.sidebar.expander("🧠 Previous Strategies", expanded=False):
 suggest_clicked = st.sidebar.button("🚀 Suggest strategy", type="primary", use_container_width=True)
 
 # Docked Sidebar Section: Session Tools
-st.markdown('<div class="sidebar-bottom">', unsafe_allow_html=True)
 
 with st.expander("🧹 Session Tools", expanded=False):
     st.markdown("Manage portfolio and memory:")
@@ -114,7 +113,7 @@ with st.expander("🧹 Session Tools", expanded=False):
     if st.button("🗑️ Clear Strategy History"):
         st.session_state.strategy_history = []
 
-st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 # 🔧 Extract sidebar values into variables
