@@ -12,7 +12,7 @@ from openai_client import ask_openai      # wrapper around OpenAI API
 from stock_utils import get_stock_summary # your own helper
 
 # ────────────────────────────────── THEME ─────────────────────────────────
-st.set_page_config(page_title="Hedge Strategy Chatbot", layout="centered")
+st.set_page_config(page_title="Strategy Chatbot", layout="centered")
 
 with st.sidebar.expander("📌 Investor Profile", expanded=False):
     # Experience
@@ -76,28 +76,35 @@ with st.sidebar.expander("🧮 Investment Settings", expanded=True):
 with st.sidebar.expander("⚙️ Strategy Settings", expanded=False):
     pass  # Removed sliders for beta band, stop-loss, total budget, and max hedge
 
+# --- Previous Strategies Section ---
+with st.sidebar.expander("🧠 Previous Strategies", expanded=False):
+    history = st.session_state.get("strategy_history", [])
+    if not history:
+        st.info("No previous strategies yet.")
+    else:
+        for idx, run in reversed(list(enumerate(history))):
+            with st.expander(f"Run {idx+1} — {run['timestamp']} | Horizon: {run['horizon']} mo", expanded=False):
+                st.markdown(
+                    f"**Capital**: ${run['capital']:,.0f}  \n"
+                    f"**Beta Band**: {run['beta_band'][0]}–{run['beta_band'][1]}"
+                )
+                st.dataframe(run["strategy_df"], use_container_width=True)
+                st.markdown("**Strategy Rationale**")
+                st.markdown(run["rationale_md"])
+
+# --- Suggest Strategy Button ---
+suggest_clicked = st.sidebar.button("🚀 Suggest strategy", type="primary", use_container_width=True)
+
+# --- Session Tools (de-emphasized) ---
 with st.sidebar.expander("🧹 Session Tools", expanded=False):
-    with st.sidebar.expander("🧠 Previous Strategies", expanded=True):
-        history = st.session_state.get("strategy_history", [])
-
-        if not history:
-            st.info("No previous strategies yet.")
-        else:
-            for idx, run in reversed(list(enumerate(history))):
-                with st.expander(f"Run {idx+1} — {run['timestamp']} | Horizon: {run['horizon']} mo"):
-                    st.markdown(
-                        f"**Capital**: ${run['capital']:,.0f}  \n"
-                        f"**Beta Band**: {run['beta_band'][0]}–{run['beta_band'][1]}"
-                    )
-                    st.dataframe(run["strategy_df"], use_container_width=True)
-                    st.markdown("**Strategy Rationale**")
-                    st.markdown(run["rationale_md"])
-
-    suggest_clicked = st.sidebar.button("🚀 Suggest strategy", type="primary", use_container_width=True)
+    st.markdown("Manage portfolio and memory:")
+    
     if st.button("🗑️ Clear Portfolio"):
         st.session_state.portfolio_alloc = {}
+
     if st.button("🧽 Clear Chat History"):
         st.session_state.chat_history = []
+
     if st.button("🗑️ Clear Strategy History"):
         st.session_state.strategy_history = []
 
