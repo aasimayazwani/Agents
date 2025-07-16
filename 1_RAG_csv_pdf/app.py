@@ -338,13 +338,6 @@ if user_input:
     except Exception as e:
         st.error(f"Error processing your query: {e}")
 
-# === Display Chat ===
-for msg in reversed(st.session_state.chat_history):
-    with st.chat_message("user"):
-        st.markdown(f"**You ({msg['timestamp']}):** {msg['question']}")
-    with st.chat_message("assistant"):
-        st.markdown(f"**Bot:** {msg['answer']}")
-
 # === Human-in-the-loop Review Section ===
 if st.session_state.pending_answer is not None:
     st.subheader("🧑‍🔬 Review and Edit the Response")
@@ -369,6 +362,15 @@ if st.session_state.pending_answer is not None:
             st.session_state.pending_query = None
             st.info("Response discarded.")
             st.rerun()
+
+# === Display Chat ===
+for msg in reversed(st.session_state.chat_history):
+    with st.chat_message("user"):
+        st.markdown(f"**You ({msg['timestamp']}):** {msg['question']}")
+    with st.chat_message("assistant"):
+        st.markdown(f"**Bot:** {msg['answer']}")
+
+
 
 # === Utilities ===
 col1, col2 = st.columns([1, 1])
