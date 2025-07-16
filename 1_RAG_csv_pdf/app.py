@@ -51,6 +51,10 @@ if "csv_dataframes" not in st.session_state:
     st.session_state.csv_dataframes = {}
 if "uploaded_files" not in st.session_state:
     st.session_state.uploaded_files = []
+if "pending_answer" not in st.session_state:
+    st.session_state.pending_answer = None
+if "pending_query" not in st.session_state:
+    st.session_state.pending_query = None
 
 # === Auto-load existing vectorstore ===
 try:
@@ -325,17 +329,12 @@ if user_input:
         state = AgentState(query=user_input)
         with st.spinner("Processing query..."):
             result = app.invoke(state)
-        
-        #answer = result.final_answer
         answer = result.get("final_answer", "⚠️ No response was generated.")
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        st.session_state.chat_history.append({
-            "timestamp": timestamp,
-            "question": user_input,
-            "answer": answer
-        })
-        
+
+        # Store pending result for human review
+        st.session_state.pending_query = user_input
+        st.session_state.pending_answer = answer
+
     except Exception as e:
         st.error(f"Error processing your query: {e}")
 
@@ -345,6 +344,31 @@ for msg in reversed(st.session_state.chat_history):
         st.markdown(f"**You ({msg['timestamp']}):** {msg['question']}")
     with st.chat_message("assistant"):
         st.markdown(f"**Bot:** {msg['answer']}")
+
+# === Human-in-the-loop Review Section ===
+if st.session_state.pending_answer is not None:
+    st.subheader("🧑‍🔬 Review and Edit the Response")
+    edited_answer = st.text_area("LLM-generated answer:", value=st.session_state.pending_answer, height=200)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("✅ Approve & Save to History"):
+            st.session_state.chat_history.append({
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "question": st.session_state.pending_query,
+                "answer": edited_answer,
+            })
+            st.session_state.pending_answer = None
+            st.session_state.pending_query = None
+            st.success("Saved to history.")
+            st.rerun()
+
+    with col2:
+        if st.button("🗑️ Discard"):
+            st.session_state.pending_answer = None
+            st.session_state.pending_query = None
+            st.info("Response discarded.")
+            st.rerun()
 
 # === Utilities ===
 col1, col2 = st.columns([1, 1])
