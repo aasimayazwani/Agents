@@ -374,27 +374,46 @@ portfolio_stocks = st.session_state.portfolio
 
 # ───────────────────────────── PORTFOLIO UI ──────────────────────────
 st.markdown("### Position sizes Editable")
-
 uploaded_file = st.file_uploader("Upload your portfolio (CSV)", type=["csv"])
+
 if uploaded_file:
-    # Read the uploaded CSV
     df = pd.read_csv(uploaded_file)
-    required_cols = ["Ticker", "Amount ($)"]
+    required_cols = ["Instrument Type", "Ticker", "Amount ($)"]
+
     if not all(col in df.columns for col in required_cols):
-        st.error("CSV must contain 'Ticker' and 'Amount ($)' columns.")
+        st.error("CSV must include at least 'Instrument Type', 'Ticker', and 'Amount ($)' columns.")
     else:
-        # Ensure 'Stop-Loss ($)' is present, default to None if missing
-        df["Stop-Loss ($)"] = df.get("Stop-Loss ($)", [None] * len(df))
-        st.session_state.alloc_df = df[["Ticker", "Amount ($)", "Stop-Loss ($)"]]
+        # Fill in optional columns with defaults if not provided
+        df["Underlying"] = df.get("Underlying", None)
+        df["Position Type"] = df.get("Position Type", "long")
+        df["Qty"] = df.get("Qty", None)
+        df["Contract Details"] = df.get("Contract Details", None)
+        df["Stop-Loss ($)"] = df.get("Stop-Loss ($)", None)
+
+        # Keep column order consistent
+        cols_order = [
+            "Instrument Type", "Ticker", "Underlying", "Position Type", "Qty",
+            "Amount ($)", "Stop-Loss ($)", "Contract Details"
+        ]
+        df = df[cols_order]
+
+        st.session_state.alloc_df = df
         st.session_state.portfolio = df["Ticker"].tolist()
         st.session_state.portfolio_alloc = dict(zip(df["Ticker"], df["Amount ($)"]))
 else:
     if "alloc_df" not in st.session_state:
         st.session_state.alloc_df = pd.DataFrame({
+            "Instrument Type": ["stock", "stock"],
             "Ticker": ["AAPL", "MSFT"],
+            "Underlying": [None, None],
+            "Position Type": ["long", "long"],
+            "Qty": [None, None],
             "Amount ($)": [10000, 10000],
-            "Stop-Loss ($)": [None, None]
+            "Stop-Loss ($)": [None, None],
+            "Contract Details": [None, None]
         })
+
+    # Filter and sort portfolio view
     st.session_state.alloc_df = (
         st.session_state.alloc_df
         .query("Ticker in @st.session_state.portfolio")
