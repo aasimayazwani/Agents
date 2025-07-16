@@ -1,4 +1,6 @@
 import streamlit as st
+from typing import Union           # ⬅️ make sure this import is already at the top once
+from langchain_core.documents import Document  # ⬅️ place with your other imports
 import os
 import json
 import pandas as pd
@@ -64,7 +66,7 @@ class AgentState(BaseModel):
     query: str
     documents: List[Any] = []
     csv_result: str = ""
-    pdf_context: str = ""
+    pdf_context: Union[str, List[Document]] = ""
     final_answer: str = ""
 
     class Config:
@@ -183,7 +185,14 @@ def pdf_retrieval_agent(state: AgentState) -> AgentState:
             
             with st.spinner("Searching documents..."):
                 result = retrieval_chain.invoke({"input": state.query})
-                state.pdf_context = result.get("context", "")
+                #state.pdf_context = result.get("context", "")
+                #state.final_answer = result.get("answer", "")
+                ctx = result.get("context", "")
+                if isinstance(ctx, list):                      # flatten list of Documents
+                    ctx = "\n\n".join(
+                        [d.page_content for d in ctx if hasattr(d, "page_content")]
+                    )
+                state.pdf_context = ctx
                 state.final_answer = result.get("answer", "")
                 
         except Exception as e:
