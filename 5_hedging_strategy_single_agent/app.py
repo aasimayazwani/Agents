@@ -121,6 +121,21 @@ portfolio          = st.session_state.get("portfolio", ["AAPL", "MSFT"])  # Use 
 model = DEFAULT_MODEL  # Define model variable using the imported DEFAULT_MODEL
 
 st.markdown("""
+    <style>
+    [data-testid="stSidebar"] > div:first-child {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    .sidebar-bottom {
+        margin-top: auto;
+        padding-bottom: 2rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
 <style>
   /* 🎨 Select and Multiselect Styling */
   div[data-baseweb="select"] > div {
@@ -155,12 +170,7 @@ st.markdown("""
     border-radius: 12px;
     margin-bottom: 18px;
   }
-  .sidebar-bottom {
-            position: fixed;
-            bottom: 1.5rem;
-            left: 1rem;
-            width: 18rem;
-        }
+
   /* 🔷 Ticker Chip Badge */
   .chip {
     display: inline-block;
