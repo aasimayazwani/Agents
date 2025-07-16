@@ -1,6 +1,7 @@
 from __future__ import annotations
 import re, textwrap, requests
 from typing import List
+import csv
 import os
 import streamlit as st
 import pandas as pd
@@ -389,7 +390,15 @@ st.markdown("### Position sizes Editable")
 uploaded_file = st.file_uploader("Upload your portfolio (CSV)", type=["csv"])
 
 if uploaded_file:
-    df = pd.read_csv(uploaded_file, quotechar='"', encoding='utf-8', skip_blank_lines=True)
+    df = pd.read_csv(
+            uploaded_file,
+            sep=",",
+            quotechar='"',
+            escapechar="\\",        # allow \" in JSON
+            engine="python",        # slower but lenient
+            on_bad_lines="warn",    # show which row fails
+            encoding="utf-8",
+        )
     required_cols = ["Instrument Type", "Ticker", "Amount ($)"]
 
     if not all(col in df.columns for col in required_cols):
