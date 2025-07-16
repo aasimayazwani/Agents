@@ -326,7 +326,8 @@ if user_input:
         with st.spinner("Processing query..."):
             result = app.invoke(state)
         
-        answer = result.final_answer
+        #answer = result.final_answer
+        answer = result.get("final_answer", "⚠️ No response was generated.")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         st.session_state.chat_history.append({
