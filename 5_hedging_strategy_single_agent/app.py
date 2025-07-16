@@ -389,7 +389,7 @@ st.markdown("### Position sizes Editable")
 uploaded_file = st.file_uploader("Upload your portfolio (CSV)", type=["csv"])
 
 if uploaded_file:
-    df = pd.read_csv(uploaded_file)
+    df = pd.read_csv(uploaded_file, quotechar='"', encoding='utf-8', skip_blank_lines=True)
     required_cols = ["Instrument Type", "Ticker", "Amount ($)"]
 
     if not all(col in df.columns for col in required_cols):
