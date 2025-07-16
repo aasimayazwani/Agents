@@ -97,7 +97,7 @@ suggest_clicked = st.sidebar.button("🚀 Suggest strategy", type="primary", use
 
 # Docked Sidebar Section: Session Tools
 
-with st.expander("🧹 Session Tools", expanded=False):
+with st.sidebar.expander("🧹 Session Tools", expanded=False):
     st.markdown("Manage portfolio and memory:")
 
     col1, col2 = st.columns(2)
