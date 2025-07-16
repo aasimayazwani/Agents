@@ -252,6 +252,18 @@ def clean_md(md: str) -> str:
     md = re.sub(r"(\d)(?=[A-Za-z])", r"\1 ", md)
     return md.replace("*", "").replace("_", "")
 
+def compute_portfolio_metrics(df: pd.DataFrame) -> tuple[str, float, str]:
+    total = df[df["Position Type"] == "long"]["Amount ($)"].sum()
+    alloc_str = "; ".join(
+        f"{row['Ticker']} ({row['Instrument Type']}): ${row['Amount ($)']:,.0f}"
+        for _, row in df.iterrows()
+    ) or "None"
+    risk_str = ", ".join(
+        r for ticker in df["Ticker"] if ticker in st.session_state.risk_cache
+        for r in st.session_state.risk_cache.get(ticker, [])[0]
+    ) or "None"
+    return alloc_str, total, risk_str
+
 def render_rationale(df: pd.DataFrame) -> None:
     if df.empty:
         st.info("No hedge rationale to show.")
@@ -422,14 +434,22 @@ else:
 
 clean_df = st.session_state.alloc_df.copy()
 
-tickers = clean_df["Ticker"].tolist()
-prices_df = fetch_prices(tickers, period="2d")
+price_lookup_tickers = clean_df.query("`Instrument Type` in ['stock', 'etf']")["Ticker"].tolist()
+prices_df = fetch_prices(price_lookup_tickers, period="2d")
 
 if not prices_df.empty:
     last = prices_df.iloc[-1]
     prev = prices_df.iloc[-2]
-    clean_df["Price"] = last.reindex(tickers).round(2).values
-    clean_df["Δ 1d %"] = ((last - prev) / prev * 100).reindex(tickers).round(2).values
+
+    price_df = pd.DataFrame({
+        "Ticker": price_lookup_tickers,
+        "Price": last.reindex(price_lookup_tickers).round(2).values,
+        "Δ 1d %": ((last - prev) / prev * 100).reindex(price_lookup_tickers).round(2).values
+    })
+
+    clean_df = clean_df.merge(price_df, on="Ticker", how="left")
+    clean_df["Price"] = clean_df["Price"].fillna(0.0)
+    clean_df["Δ 1d %"] = clean_df["Δ 1d %"].fillna(0.0)
 else:
     clean_df["Price"] = 0.0
     clean_df["Δ 1d %"] = 0.0
@@ -502,9 +522,22 @@ if "strategy_history" not in st.session_state:
 
 if suggest_clicked:
     ignored = "; ".join(st.session_state.risk_ignore) or "None"
-    total_capital = sum(st.session_state.portfolio_alloc.values())
-    risk_string = ", ".join(r for ticker in portfolio for r in st.session_state.risk_cache.get(ticker, [])[0]) or "None"
-    alloc_str = "; ".join(f"{k}: ${v:,.0f}" for k, v in st.session_state.portfolio_alloc.items()) or "None"
+
+    # Sum only long-equity and long-etf positions for capital base unless you're margin-aware
+    df = st.session_state.alloc_df
+    total_capital = df[df["Position Type"] == "long"]["Amount ($)"].sum()
+
+    # Generate risk string across all tickers with available risk cache
+    risk_string = ", ".join(
+        r for ticker in df["Ticker"] if ticker in st.session_state.risk_cache
+        for r in st.session_state.risk_cache.get(ticker, [])[0]
+    ) or "None"
+
+    # Allocation string with type-tag for better readability
+    alloc_str = "; ".join(
+        f"{row['Ticker']} ({row['Instrument Type']}): ${row['Amount ($)']:,.0f}"
+        for _, row in df.iterrows()
+    ) or "None"
 
     exp_pref = st.session_state.explanation_pref
 
@@ -678,7 +711,8 @@ if suggest_clicked:
     user_df["Price"] = user_df["Price"].round(2)
     user_df["Δ 1d %"] = user_df["Δ 1d %"].round(2)
 
-    final_cols = ["Ticker", "Position", "Amount ($)", "% of Portfolio", "Price", "Δ 1d %", "Source", "Rationale"]
+    final_cols = ["Instrument Type", "Ticker", "Underlying", "Position Type", "Qty",
+              "Amount ($)", "Price", "Δ 1d %", "Stop-Loss ($)", "Source", "Rationale"]
     user_df = user_df[final_cols]
     missing_cols = [col for col in final_cols if col not in df.columns]
     for col in missing_cols:
