@@ -95,18 +95,27 @@ with st.sidebar.expander("🧠 Previous Strategies", expanded=False):
 # --- Suggest Strategy Button ---
 suggest_clicked = st.sidebar.button("🚀 Suggest strategy", type="primary", use_container_width=True)
 
+# Docked Sidebar Section: Session Tools
 st.markdown('<div class="sidebar-bottom">', unsafe_allow_html=True)
 
 with st.expander("🧹 Session Tools", expanded=False):
     st.markdown("Manage portfolio and memory:")
-    if st.button("🗑️ Clear Portfolio"):
-        st.session_state.portfolio_alloc = {}
-    if st.button("🧽 Clear Chat History"):
-        st.session_state.chat_history = []
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🗑️ Clear Portfolio"):
+            st.session_state.portfolio_alloc = {}
+
+    with col2:
+        if st.button("🧽 Clear Chat History"):
+            st.session_state.chat_history = []
+
+    # Full-width bottom button
     if st.button("🗑️ Clear Strategy History"):
         st.session_state.strategy_history = []
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 # 🔧 Extract sidebar values into variables
 experience_level   = st.session_state.get("experience_level", "Expert")
@@ -118,24 +127,21 @@ portfolio          = st.session_state.get("portfolio", ["AAPL", "MSFT"])  # Use 
 model = DEFAULT_MODEL  # Define model variable using the imported DEFAULT_MODEL
 
 st.markdown("""
-    <style>
-    [data-testid="stSidebar"] > div:first-child {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-    }
-
-    .sidebar-bottom {
-        margin-top: auto;
-        padding-bottom: 2rem;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-st.markdown("""
 <style>
-  /* 🎨 Select and Multiselect Styling */
-  div[data-baseweb="select"] > div {
+/* === 🔧 Sidebar Layout Fix for Bottom Docking === */
+[data-testid="stSidebar"] > div:first-child {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+.sidebar-bottom {
+    margin-top: auto;
+    padding-bottom: 2rem;
+}
+
+
+/* === 🎨 Select & Multiselect Inputs === */
+div[data-baseweb="select"] > div {
     background-color: #1f2937 !important;
     border-radius: 12px !important;
     padding: 4px 12px !important;
@@ -145,31 +151,33 @@ st.markdown("""
     line-height: 1.4 !important;
     display: flex;
     align-items: center;
-  }
+}
 
-  .stMultiSelect > div {
+.stMultiSelect > div {
     gap: 4px !important;
     flex-wrap: wrap;
     padding: 2px !important;
-  }
+}
 
-  .stMultiSelect span[data-baseweb="tag"] {
+.stMultiSelect span[data-baseweb="tag"] {
     margin-bottom: 4px !important;
     font-size: 13px !important;
     padding: 4px 8px !important;
     border-radius: 12px !important;
-  }
+}
 
-  /* 🧱 Card Component */
-  .card {
+
+/* === 🧱 Reusable Card Component === */
+.card {
     background: #1e1f24;
     padding: 18px;
     border-radius: 12px;
     margin-bottom: 18px;
-  }
+}
 
-  /* 🔷 Ticker Chip Badge */
-  .chip {
+
+/* === 🔷 Ticker Chip Badge === */
+.chip {
     display: inline-block;
     margin: 0 6px 6px 0;
     padding: 4px 10px;
@@ -178,48 +186,50 @@ st.markdown("""
     color: #f1f5f9;
     font-weight: 600;
     font-size: 13px;
-  }
+}
 
-  /* 📊 Metric Display */
-  .metric {
+
+/* === 📊 Metric Display === */
+.metric {
     font-size: 18px;
     font-weight: 600;
     margin-bottom: 2px;
-  }
-
-  .metric-small {
+}
+.metric-small {
     font-size: 14px;
-  }
+}
 
-  /* 🏷️ Label Styling */
-  label {
+
+/* === 🏷️ Label Styling === */
+label {
     font-weight: 600;
     font-size: 0.88rem;
-  }
+}
 
-  /* ⚠️ Risk Section Grid */
-  .risk-grid {
+
+/* === ⚠️ Risk Section Cards === */
+.risk-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 12px;
     margin-top: 10px;
     margin-bottom: 16px;
-  }
+}
 
-  .risk-card {
+.risk-card {
     background-color: #1f2937;
     border-radius: 10px;
     padding: 12px 16px;
     color: #f8fafc;
     box-shadow: 0 0 0 1px #33415544;
     transition: background 0.2s ease-in-out;
-  }
+}
 
-  .risk-card:hover {
+.risk-card:hover {
     background-color: #273449;
-  }
+}
 
-  .risk-card label {
+.risk-card label {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -227,37 +237,38 @@ st.markdown("""
     font-weight: 500;
     margin: 0;
     cursor: pointer;
-  }
+}
 
-  .risk-card input[type="checkbox"] {
+.risk-card input[type="checkbox"] {
     margin-right: 10px;
     transform: scale(1.2);
     accent-color: #10b981;
-  }
+}
 
-  .risk-card a {
+.risk-card a {
     color: #60a5fa;
     text-decoration: none;
     font-size: 14px;
     margin-left: 12px;
-  }
+}
 
-  .risk-card a:hover {
+.risk-card a:hover {
     text-decoration: underline;
-  }
+}
 
-  .risk-card i {
+.risk-card i {
     font-style: normal;
     font-size: 13px;
     color: #60a5fa;
     margin-left: 6px;
-  }
+}
 
-  /* 🧼 Misc. Clean-up */
-  h3 {
+
+/* === 🧼 Misc. Clean-Up === */
+h3 {
     margin-top: 0;
     margin-bottom: 0;
-  }
+}
 </style>
 """, unsafe_allow_html=True)
 
