@@ -15,7 +15,7 @@ import functools
 from shapely.geometry import Point, Polygon
 
 # ---------- 1. Define State and Constants ----------
-client = OpenAI(api_key="sk-proj")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 MAX_RETRIES = 3
 LOG_PATH = os.getenv("STEP_LOG", "query_log.csv")
 MAX_DISPLAY_ROWS = 20
@@ -60,7 +60,7 @@ FEW_SHOTS = [
 # ---------- 2. File Reading and Setup ----------
 
 def read_md(name: str) -> str:
-    return Path("/Users/aasimwani/Desktop/prompts/" + name).read_text()
+    return Path("prompts/" + name).read_text()
 
 TABLE_SELECTION = read_md("table_selection_heuristics.md")
 TABLE_DEFS = read_md("table_definitions.md")
@@ -71,8 +71,8 @@ GLOBAL_RULES = read_md("global_rules.txt")
 BUSINESS_RULES = read_md("business_rules.md")
 EXAMPLES = read_md("examples.md")
 
-MEMORY = json.loads(Path("/Users/aasimwani/Desktop/prompts/structured_memory.json").read_text())
-DEFAULT_DB_PATH = os.getenv("SQLITE_DB_PATH", "/Users/aasimwani/Downloads/vehicle.db")
+MEMORY = json.loads(Path("prompts/structured_memory.json").read_text())
+DEFAULT_DB_PATH = os.getenv("SQLITE_DB_PATH", "vehicle.db")
 
 if not logging.getLogger("sql_graph").handlers:
     logging.basicConfig(
