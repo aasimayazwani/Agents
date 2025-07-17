@@ -2,5 +2,5 @@ langgraph==0.1.9          # Latest LangGraph version (July 2025)
 openai==1.35.0            # Compatible OpenAI client
 streamlit==1.36.0         # Latest stable Streamlit
 pandas==2.2.2             # For data manipulation
-shapely==2.0.4            # For geometric operations
+shapely==1.8.5            # For geometric operations
 numpy==2.0.0              # Required by pandas
