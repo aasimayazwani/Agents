@@ -493,7 +493,3 @@ if st.checkbox("Show Debug Logs"):
             st.text_area("Debug Logs", f.read(), height=200)
     else:
         st.write("No debug logs available yet.")
-
-# Run the app
-if __name__ == "__main__":
-    st.run()
